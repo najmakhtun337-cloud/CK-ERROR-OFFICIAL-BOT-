@@ -1,7 +1,16 @@
 from telegram import Update, ChatPermissions
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-import config
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters
+)
+import os
 import time
+
+BOT_TOKEN = os.getenv("8467048531:AAGvro6Rtz28yKtFHhrGBK6W_j2S4w173XI")
+OWNER_ID = int(os.getenv("6877097857"))
 
 WARN_LIMIT = 3
 warns = {}
@@ -15,23 +24,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # HELP
-async def help_cmd(update: Update, context):
+async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🌹 *CK ERROR OFFICIAL BOT*\n\n"
         "/rules - Group rules\n"
         "/warn - Warn user\n"
         "/ban - Ban user\n"
         "/kick - Kick user\n"
         "/mute <min> - Mute user\n"
-        "/unmute - Unmute user\n"
-        "/lock <type>\n"
-        "/unlock <type>\n"
-        "/pin /unpin",
-        parse_mode="Markdown"
+        "/unmute - Unmute user",
     )
 
 # RULES
-async def rules(update: Update, context):
+async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📜 Group Rules:\n"
         "1. No spam\n"
@@ -40,14 +44,17 @@ async def rules(update: Update, context):
     )
 
 # ADMIN CHECK
-async def is_admin(update):
+async def is_admin(update: Update):
     admins = await update.effective_chat.get_administrators()
     return update.effective_user.id in [a.user.id for a in admins]
 
-# WARN SYSTEM
-async def warn(update: Update, context):
+# WARN
+async def warn(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return
+    if not update.message.reply_to_message:
+        return
+
     user = update.message.reply_to_message.from_user.id
     warns[user] = warns.get(user, 0) + 1
 
@@ -58,29 +65,35 @@ async def warn(update: Update, context):
         await update.message.reply_text(f"⚠ Warn {warns[user]}/{WARN_LIMIT}")
 
 # BAN
-async def ban(update: Update, context):
+async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return
-    user = update.message.reply_to_message.from_user.id
-    await update.effective_chat.ban_member(user)
-    await update.message.reply_text("🚫 User banned")
+    if update.message.reply_to_message:
+        user = update.message.reply_to_message.from_user.id
+        await update.effective_chat.ban_member(user)
+        await update.message.reply_text("🚫 User banned")
 
 # KICK
-async def kick(update: Update, context):
+async def kick(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return
-    user = update.message.reply_to_message.from_user.id
-    await update.effective_chat.ban_member(user)
-    await update.effective_chat.unban_member(user)
-    await update.message.reply_text("👢 User kicked")
+    if update.message.reply_to_message:
+        user = update.message.reply_to_message.from_user.id
+        await update.effective_chat.ban_member(user)
+        await update.effective_chat.unban_member(user)
+        await update.message.reply_text("👢 User kicked")
 
 # MUTE
-async def mute(update: Update, context):
+async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return
+    if not update.message.reply_to_message:
+        return
+
     mins = int(context.args[0])
     user = update.message.reply_to_message.from_user.id
     until = int(time.time() + mins * 60)
+
     await update.effective_chat.restrict_member(
         user,
         ChatPermissions(can_send_messages=False),
@@ -89,23 +102,25 @@ async def mute(update: Update, context):
     await update.message.reply_text(f"🔇 Muted for {mins} minutes")
 
 # UNMUTE
-async def unmute(update: Update, context):
+async def unmute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return
-    user = update.message.reply_to_message.from_user.id
-    await update.effective_chat.restrict_member(
-        user,
-        ChatPermissions(can_send_messages=True)
-    )
-    await update.message.reply_text("🔊 User unmuted")
+    if update.message.reply_to_message:
+        user = update.message.reply_to_message.from_user.id
+        await update.effective_chat.restrict_member(
+            user,
+            ChatPermissions(can_send_messages=True)
+        )
+        await update.message.reply_text("🔊 User unmuted")
 
-# AUTO DELETE LINKS
-async def anti_link(update: Update, context):
-    if "http" in update.message.text:
-        await update.message.delete()
+# ANTI LINK
+async def anti_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.text and "http" in update.message.text:
+        if not await is_admin(update):
+            await update.message.delete()
 
 # MAIN
-app = ApplicationBuilder().token(config.BOT_TOKEN).build()
+app = ApplicationBuilder().token(BOT_TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("help", help_cmd))
